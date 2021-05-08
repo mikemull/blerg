@@ -1,0 +1,13 @@
+[package]
+name = "blerg"
+version = "0.1.0"
+authors = ["Mike Mull <mike.mull@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+csv="1.1"
+
+[dependencies.pnet]
+version = "0.27.2"
