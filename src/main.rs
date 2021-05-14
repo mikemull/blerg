@@ -12,10 +12,10 @@ fn main() {
     let interface_opt = env::args().nth(1);
     let npacket_opt = env::args().nth(2);
 
-    let mac_map = macfile::read_mac_file().unwrap();
-    //if let Err(err) = macfile::read_mac_file() {
-    //    println!("error running example: {}", err);
-    //}
+    let mac_map = match macfile::read_mac_file() {
+        Ok(mac_map) => mac_map,
+        Err(e) => panic!("No MAC mapping file: {}", e)
+    };
 
     let interface_name = match interface_opt {
         Some(p) =>  p,

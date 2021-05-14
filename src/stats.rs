@@ -4,7 +4,7 @@ use pnet::packet::ethernet::EthernetPacket;
 use pnet::datalink::Channel::Ethernet;
 use std::collections::HashMap;
 
-
+// Collect the next num_packets Layer 2 packets and keep track of counts by MAC address
 pub fn count_packets(
     interface: &NetworkInterface,
     num_packets: i32)
@@ -36,6 +36,6 @@ pub fn count_packets(
         }
         pcount += 1;
     }
-    
+
     return packet_counts;
 }
