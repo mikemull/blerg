@@ -1,7 +1,7 @@
 # blerg
 Toy Rust program to mess with network stuff
 
-Right now it grabs every Layer 2 packet on a specified interface for some number of packets, and counts 'em up.
+Right now it grabs every Layer 2 packet on a specified interface for some number of packets, and counts 'em up by MAC address.
 This apparently useless function is kind of a fun way to discover stuff on your network.  You run it like:
 
 ```
