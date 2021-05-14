@@ -1,14 +1,12 @@
 
 extern crate pnet;
 
-use pnet::{datalink::{self, NetworkInterface}, util::MacAddr};
+use pnet::{datalink::{self, NetworkInterface}};
 
 use std::env;
-use std::collections::HashMap;
 
 mod macfile;
 mod stats;
-
 
 fn main() {
     let interface_opt = env::args().nth(1);
@@ -28,7 +26,6 @@ fn main() {
         None => 1000
     };
 
-    //let interface_name = env::args().nth(1).unwrap();
     println!("{}", interface_name);
     let interface_names_match =
         |iface: &NetworkInterface| iface.name == interface_name;
@@ -40,5 +37,10 @@ fn main() {
                               .next()
                               .unwrap();
 
-    stats::count_packets(&interface, npacket, mac_map);
+    // Count packets by MAC address
+    let packet_counts = stats::count_packets(&interface, npacket);
+
+    for (address, count) in &packet_counts {
+        println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
+    }
 }

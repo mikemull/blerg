@@ -5,7 +5,10 @@ use pnet::datalink::Channel::Ethernet;
 use std::collections::HashMap;
 
 
-pub fn count_packets(interface: &NetworkInterface, num_packets: i32, mac_map: HashMap<MacAddr, String>) {
+pub fn count_packets(
+    interface: &NetworkInterface,
+    num_packets: i32)
+    -> HashMap<MacAddr, i32> {
 
     let mut packet_counts = HashMap::new();
 
@@ -33,8 +36,6 @@ pub fn count_packets(interface: &NetworkInterface, num_packets: i32, mac_map: Ha
         }
         pcount += 1;
     }
-    for (address, count) in &packet_counts {
-        println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
-    }
-
+    
+    return packet_counts;
 }
