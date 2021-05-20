@@ -2,6 +2,7 @@
 extern crate pnet;
 
 use pnet::{datalink::{self, NetworkInterface}};
+use clap::{Arg, App};
 
 use std::env;
 
@@ -9,21 +10,26 @@ mod macfile;
 mod stats;
 
 fn main() {
-    let interface_opt = env::args().nth(1);
-    let npacket_opt = env::args().nth(2);
+    let matches = App::new("blerg")
+    .version("0.1")
+    .author("Mike <mike.mull@gmail.com>")
+    .about("Counts packets")
+    .arg(Arg::new("INTERFACE")
+        .about("Interface to use")
+        .required(true)
+        .index(1))        
+    .arg(Arg::new("NUMPACKETS")
+        .about("Stop after this many packets")
+        .required(true)
+        .index(2))
+    .get_matches();
+
+    let interface_name = matches.value_of("INTERFACE").unwrap();
+    let npacket: i32 = matches.value_of_t("NUMPACKETS").unwrap();
 
     let mac_map = match macfile::read_mac_file() {
         Ok(mac_map) => mac_map,
         Err(e) => panic!("No MAC mapping file: {}", e)
-    };
-
-    let interface_name = match interface_opt {
-        Some(p) =>  p,
-        None => "en0".to_string()
-    };
-    let npacket = match npacket_opt {
-        Some(p) => p.parse().unwrap(),
-        None => 1000
     };
 
     println!("{}", interface_name);
