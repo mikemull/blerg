@@ -22,10 +22,15 @@ fn main() {
         .about("Stop after this many packets")
         .required(true)
         .index(2))
+    .arg(Arg::new("unknown")
+        .about("Only list addresses not in MACs file")
+        .short('u')
+        .long("unknown"))
     .get_matches();
 
     let interface_name = matches.value_of("INTERFACE").unwrap();
     let npacket: i32 = matches.value_of_t("NUMPACKETS").unwrap();
+    let only_unknown: bool = matches.is_present("unknown");
 
     let mac_map = match macfile::read_mac_file() {
         Ok(mac_map) => mac_map,
@@ -47,6 +52,12 @@ fn main() {
     let packet_counts = stats::count_packets(&interface, npacket);
 
     for (address, count) in &packet_counts {
-        println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
+        if only_unknown {
+            if !mac_map.contains_key(address) {
+                println!("{}: {}", address, count);
+            }
+        } else {
+            println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
+        }
     }
 }
