@@ -2,35 +2,34 @@
 extern crate pnet;
 
 use pnet::{datalink::{self, NetworkInterface}};
-use clap::{Arg, App};
-
-use std::env;
+use clap::{Arg, ArgAction, Command, value_parser};
 
 mod macfile;
 mod stats;
 
 fn main() {
-    let matches = App::new("blerg")
+    let matches = Command::new("blerg")
     .version("0.1")
     .author("Mike <mike.mull@gmail.com>")
-    .about("Counts packets")
     .arg(Arg::new("INTERFACE")
-        .about("Interface to use")
+        .help("Interface to use")
         .required(true)
         .index(1))        
     .arg(Arg::new("NUMPACKETS")
-        .about("Stop after this many packets")
+        .value_parser(value_parser!(i32))
+        .help("Stop after this many packets")
         .required(true)
         .index(2))
     .arg(Arg::new("unknown")
-        .about("Only list addresses not in MACs file")
+        .help("Only list addresses not in MACs file")
         .short('u')
-        .long("unknown"))
+        .long("unknown")
+        .action(ArgAction::SetTrue))
     .get_matches();
 
-    let interface_name = matches.value_of("INTERFACE").unwrap();
-    let npacket: i32 = matches.value_of_t("NUMPACKETS").unwrap();
-    let only_unknown: bool = matches.is_present("unknown");
+    let interface_name = matches.get_one::<String>("INTERFACE").unwrap();
+    let npacket: i32 = *matches.get_one::<i32>("NUMPACKETS").unwrap();
+    let only_unknown: bool = matches.get_flag("unknown");
 
     let mac_map = match macfile::read_mac_file() {
         Ok(mac_map) => mac_map,
@@ -39,7 +38,7 @@ fn main() {
 
     println!("{}", interface_name);
     let interface_names_match =
-        |iface: &NetworkInterface| iface.name == interface_name;
+        |iface: &NetworkInterface| iface.name == *interface_name;
 
     // Find the network interface with the provided name
     let interfaces = datalink::interfaces();
