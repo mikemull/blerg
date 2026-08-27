@@ -4,7 +4,14 @@ extern crate pnet;
 use pnet::{datalink::{self, NetworkInterface}};
 use clap::{Arg, ArgAction, Command, value_parser};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
+use std::thread;
+
+use sink::{PacketSink, StdoutSink};
+
 mod macfile;
+mod sink;
 mod stats;
 
 fn main() {
@@ -17,19 +24,29 @@ fn main() {
         .index(1))        
     .arg(Arg::new("NUMPACKETS")
         .value_parser(value_parser!(i32))
-        .help("Stop after this many packets")
-        .required(true)
+        .help("Stop after this many packets (omit to run until stopped with Ctrl-C)")
+        .required(false)
         .index(2))
     .arg(Arg::new("unknown")
         .help("Only list addresses not in MACs file")
         .short('u')
         .long("unknown")
         .action(ArgAction::SetTrue))
+    .arg(Arg::new("stream")
+        .help("Stream each packet to a sink instead of printing a MAC count summary")
+        .long("stream")
+        .action(ArgAction::SetTrue))
     .get_matches();
 
     let interface_name = matches.get_one::<String>("INTERFACE").unwrap();
-    let npacket: i32 = *matches.get_one::<i32>("NUMPACKETS").unwrap();
+    let npacket: Option<i32> = matches.get_one::<i32>("NUMPACKETS").copied();
     let only_unknown: bool = matches.get_flag("unknown");
+    let stream_mode: bool = matches.get_flag("stream");
+
+    let running = Arc::new(AtomicBool::new(true));
+    let running_handler = running.clone();
+    ctrlc::set_handler(move || running_handler.store(false, Ordering::Relaxed))
+        .expect("Error setting Ctrl-C handler");
 
     let mac_map = match macfile::read_mac_file() {
         Ok(mac_map) => mac_map,
@@ -47,16 +64,34 @@ fn main() {
                               .next()
                               .unwrap();
 
-    // Count packets by MAC address
-    let packet_counts = stats::count_packets(&interface, npacket);
+    if stream_mode {
+        // Capture stays on this thread; a separate thread owns the sink so a
+        // slow write (e.g. to a database) never blocks packet capture.
+        let (tx, rx) = mpsc::channel();
+        let mut sink: Box<dyn PacketSink> = Box::new(StdoutSink);
 
-    for (address, count) in &packet_counts {
-        if only_unknown {
-            if !mac_map.contains_key(address) {
-                println!("{}: {}", address, count);
+        let writer = thread::spawn(move || {
+            for record in rx {
+                if let Err(e) = sink.write(&record) {
+                    eprintln!("sink error: {}", e);
+                }
             }
-        } else {
-            println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
+        });
+
+        stats::stream_packets(&interface, npacket, running, tx);
+        writer.join().unwrap();
+    } else {
+        // Count packets by MAC address
+        let packet_counts = stats::count_packets(&interface, npacket, running);
+
+        for (address, count) in &packet_counts {
+            if only_unknown {
+                if !mac_map.contains_key(address) {
+                    println!("{}: {}", address, count);
+                }
+            } else {
+                println!("{}({}): {}", mac_map.get(address).unwrap_or(&"".to_string()), address, count);
+            }
         }
     }
 }
