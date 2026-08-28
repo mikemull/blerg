@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread;
 
-use sink::{PacketSink, StdoutSink};
+use sink::{PacketSink, PostgresSink, StdoutSink};
 
 mod macfile;
 mod sink;
@@ -36,12 +36,17 @@ fn main() {
         .help("Stream each packet to a sink instead of printing a MAC count summary")
         .long("stream")
         .action(ArgAction::SetTrue))
+    .arg(Arg::new("db-url")
+        .help("Postgres connection string to stream packets into (implies --stream)")
+        .long("db-url")
+        .value_name("URL"))
     .get_matches();
 
     let interface_name = matches.get_one::<String>("INTERFACE").unwrap();
     let npacket: Option<i32> = matches.get_one::<i32>("NUMPACKETS").copied();
     let only_unknown: bool = matches.get_flag("unknown");
-    let stream_mode: bool = matches.get_flag("stream");
+    let db_url = matches.get_one::<String>("db-url");
+    let stream_mode: bool = matches.get_flag("stream") || db_url.is_some();
 
     let running = Arc::new(AtomicBool::new(true));
     let running_handler = running.clone();
@@ -68,7 +73,12 @@ fn main() {
         // Capture stays on this thread; a separate thread owns the sink so a
         // slow write (e.g. to a database) never blocks packet capture.
         let (tx, rx) = mpsc::channel();
-        let mut sink: Box<dyn PacketSink> = Box::new(StdoutSink);
+        let mut sink: Box<dyn PacketSink> = match db_url {
+            Some(url) => Box::new(
+                PostgresSink::new(url).expect("Failed to connect to Postgres")
+            ),
+            None => Box::new(StdoutSink),
+        };
 
         let writer = thread::spawn(move || {
             for record in rx {
