@@ -8,8 +8,9 @@ use postgres_types::{to_sql_checked, IsNull, ToSql, Type};
 
 // Wraps `MacAddr` so we can give it a `ToSql` impl for Postgres's native
 // `macaddr` type — the on-wire binary format is just the 6 address bytes.
+// pub(crate) so query code (e.g. `decode`) can also bind MacAddr filters.
 #[derive(Debug)]
-struct PgMacAddr(MacAddr);
+pub(crate) struct PgMacAddr(pub(crate) MacAddr);
 
 impl ToSql for PgMacAddr {
     fn to_sql(&self, _ty: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
@@ -49,8 +50,8 @@ pub struct StdoutSink;
 impl PacketSink for StdoutSink {
     fn write(&mut self, record: &PacketRecord) -> Result<(), Box<dyn Error>> {
         println!(
-            "{:?} {} -> {} ethertype=0x{:04x} len={}",
-            record.timestamp,
+            "{} {} -> {} ethertype=0x{:04x} len={}",
+            humantime::format_rfc3339_seconds(record.timestamp),
             record.source,
             record.destination,
             record.ethertype,
