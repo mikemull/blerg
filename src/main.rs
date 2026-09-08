@@ -158,7 +158,7 @@ fn run_decode(matches: &ArgMatches) {
     // Match if either the source or destination MAC is one of the filter
     // addresses; an empty filter means "everything".
     let mac_clauses: Vec<String> = (0..macs.len())
-        .map(|i| format!("(source_mac = ${} OR dest_mac = ${})", i + 1, i + 1))
+        .map(|i| format!("(p.source_mac = ${} OR p.dest_mac = ${})", i + 1, i + 1))
         .collect();
     let where_clause = if mac_clauses.is_empty() {
         String::new()
@@ -170,9 +170,15 @@ fn run_decode(matches: &ArgMatches) {
     let mut params: Vec<&(dyn ToSql + Sync)> = mac_params.iter().map(|m| m as &(dyn ToSql + Sync)).collect();
     params.push(&limit);
 
+    // oui_vendors.oui is the lowercase first-3-octets prefix (see
+    // docs/schema.sql), so the join matches it against a substring of the
+    // full MAC's text form rather than an equality on the MAC itself.
     let query = format!(
-        "SELECT captured_at, source_mac::text, dest_mac::text, ethertype, payload \
-         FROM packets {} ORDER BY captured_at DESC LIMIT ${}",
+        "SELECT p.captured_at, p.source_mac::text, sv.vendor, p.dest_mac::text, dv.vendor, p.ethertype, p.payload \
+         FROM packets p \
+         LEFT JOIN oui_vendors sv ON sv.oui = substring(p.source_mac::text from 1 for 8) \
+         LEFT JOIN oui_vendors dv ON dv.oui = substring(p.dest_mac::text from 1 for 8) \
+         {} ORDER BY p.captured_at DESC LIMIT ${}",
         where_clause,
         params.len()
     );
@@ -182,14 +188,26 @@ fn run_decode(matches: &ArgMatches) {
     for row in rows {
         let captured_at: std::time::SystemTime = row.get(0);
         let source_mac: String = row.get(1);
-        let dest_mac: String = row.get(2);
-        let ethertype: i32 = row.get(3);
-        let payload: Vec<u8> = row.get(4);
+        let source_vendor: Option<String> = row.get(2);
+        let dest_mac: String = row.get(3);
+        let dest_vendor: Option<String> = row.get(4);
+        let ethertype: i32 = row.get(5);
+        let payload: Vec<u8> = row.get(6);
 
         let summary = decode_summary(ethertype as u16, &payload);
         println!(
             "{} {} -> {}  {}",
-            humantime::format_rfc3339_seconds(captured_at), source_mac, dest_mac, summary
+            humantime::format_rfc3339_seconds(captured_at),
+            with_vendor(&source_mac, source_vendor),
+            with_vendor(&dest_mac, dest_vendor),
+            summary
         );
+    }
+}
+
+fn with_vendor(mac: &str, vendor: Option<String>) -> String {
+    match vendor {
+        Some(v) => format!("{} ({})", mac, v),
+        None => mac.to_string(),
     }
 }
